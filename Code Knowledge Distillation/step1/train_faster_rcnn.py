@@ -638,6 +638,7 @@ if __name__ == '__main__':
     else:
         ctx = [mx.gpu(int(i)) for i in args.gpus.split(',') if i.strip()]
         ctx = ctx if ctx else [mx.cpu()]
+        #ctx = [mx.cpu()]
 
     # training data
     train_dataset, val_dataset, eval_metric = get_dataset(args.dataset, args)

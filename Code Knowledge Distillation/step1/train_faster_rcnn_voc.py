@@ -218,7 +218,7 @@ rpn_cls_loss = loss.DistillationSoftmaxCrossEntropyLoss(temperature=5)
 # the loss to penalize inaccurate anchor boxes
 rpn_box_loss = mx.gluon.loss.HuberLoss(rho=1 / 9.)  # == smoothl1
 # the loss to penalize incorrect classification prediction.
-rcnn_cls_loss = loss.DistxillationSoftmaxCrossEntropyLoss(temperature=5)
+rcnn_cls_loss = loss.DistillationSoftmaxCrossEntropyLoss(temperature=5)
 # and finally the loss to penalize inaccurate proposals
 rcnn_box_loss = mx.gluon.loss.HuberLoss()  # == smoothl1
 

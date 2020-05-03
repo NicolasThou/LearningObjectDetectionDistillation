@@ -8,7 +8,7 @@ if __name__ == '__main__':
     """
     =========================== pseudo code ============================
     
-    1) Custom the pre-trained Fast R-CNN in order to have soft-label which means that for the output layer
+    1) Custom the pre-trained Faster R-CNN in order to have soft-label which means that for the output layer
     we need to put the activation function : softmax with Temperature
     
     2) Build the distill model, rely on fast R-CNN model or any object detection model but with less
