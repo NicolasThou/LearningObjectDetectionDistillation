@@ -32,7 +32,7 @@ if __name__ == '__main__':
     
     ---------------------------------------------------------------------------------------------------------
     
-    # step 1
+    # step 1 OK
     Fast_RCNN = get_model(activation_function_output = custom_function())
     
     

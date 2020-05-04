@@ -44,7 +44,16 @@ Appendix from [He16]_ and experiment detail from [Lin17]_ may also be useful ref
     if you feel comfortable.
 
 """
-from gluoncv import loss
+from gluoncv.data import VOCDetection
+from matplotlib import pyplot as plt
+from gluoncv.utils import viz
+from gluoncv.data.transforms import presets
+from gluoncv import utils
+from mxnet import nd
+from gluoncv.data.batchify import Tuple, Append, FasterRCNNTrainBatchify
+from mxnet.gluon.data import DataLoader
+
+
 
 ##########################################################
 # Dataset
@@ -142,17 +151,34 @@ batch_size = 2  # for tutorial, we use smaller batch-size
 num_workers = 0  # you can make it larger(if your CPU has more cores) to accelerate data loading
 
 # behavior of batchify_fn: stack images, and pad labels
+
+print()
+print("=============== Data Loader ===================")
+print()
+
+
 batchify_fn = Tuple(Append(), Append())
-train_loader = DataLoader(train_dataset.transform(train_transform), batch_size, shuffle=True,
-                          batchify_fn=batchify_fn, last_batch='rollover', num_workers=num_workers)
-val_loader = DataLoader(val_dataset.transform(val_transform), batch_size, shuffle=False,
-                        batchify_fn=batchify_fn, last_batch='keep', num_workers=num_workers)
+
+train_loader = DataLoader(train_dataset.transform(train_transform),
+                          batch_size, shuffle=True,
+                          batchify_fn=batchify_fn,
+                          last_batch='rollover',
+                          num_workers=num_workers)
+
+val_loader = DataLoader(val_dataset.transform(val_transform),
+                        batch_size, shuffle=False,
+                        batchify_fn=batchify_fn,
+                        last_batch='keep',
+                        num_workers=num_workers)
 
 for ib, batch in enumerate(train_loader):
     if ib > 3:
         break
     print('data 0:', batch[0][0].shape, 'label 0:', batch[1][0].shape)
     print('data 1:', batch[0][1].shape, 'label 1:', batch[1][1].shape)
+
+
+
 
 ##########################################################
 # Faster-RCNN Network
@@ -172,8 +198,13 @@ for ib, batch in enumerate(train_loader):
 #    ``pretrained_base=True``.
 from gluoncv import model_zoo
 
+print()
+print("=============== FASTER R-CNN ===================")
+print()
+
+
 net = model_zoo.get_model('faster_rcnn_resnet50_v1b_voc', pretrained_base=False)
-print(net)
+print("The network has an architecture like : ", net)
 
 ##############################################################################
 # Faster-RCNN network is callable with image tensor
@@ -214,11 +245,11 @@ with autograd.train_mode():
 # There are four losses involved in end-to-end Faster-RCNN training.
 
 # the loss to penalize incorrect foreground/background prediction
-rpn_cls_loss = loss.DistillationSoftmaxCrossEntropyLoss(temperature=5)
+rpn_cls_loss = mx.gluon.loss.SigmoidBinaryCrossEntropyLoss(from_sigmoid=False)
 # the loss to penalize inaccurate anchor boxes
 rpn_box_loss = mx.gluon.loss.HuberLoss(rho=1 / 9.)  # == smoothl1
 # the loss to penalize incorrect classification prediction.
-rcnn_cls_loss = loss.DistillationSoftmaxCrossEntropyLoss(temperature=5)
+rcnn_cls_loss = mx.gluon.loss.SoftmaxCrossEntropyLoss()
 # and finally the loss to penalize inaccurate proposals
 rcnn_box_loss = mx.gluon.loss.HuberLoss()  # == smoothl1
 

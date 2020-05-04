@@ -5,10 +5,17 @@ This article shows how to play with pre-trained Faster RCNN model.
 
 First let's import some necessary libraries:
 """
+from __future__ import print_function
 
+import mxnet as mx
+import mxnet.ndarray as nd
+from mxnet import nd, autograd, gluon
+from mxnet.gluon.data.vision import transforms
+import numpy as np
 from matplotlib import pyplot as plt
 import gluoncv
 from gluoncv import model_zoo, data, utils
+from gluoncv.model_zoo.rcnn.faster_rcnn import *
 
 ######################################################################
 # Load a pretrained model
@@ -46,10 +53,13 @@ net = model_zoo.get_model('faster_rcnn_resnet50_v1b_voc', pretrained=True)
 #
 # Please beware that `orig_img` is resized to short edge 600px.
 
+
 im_fname = utils.download('https://github.com/dmlc/web-data/blob/master/' +
                           'gluoncv/detection/biking.jpg?raw=true',
                           path='biking.jpg')
 x, orig_img = data.transforms.presets.rcnn.load_test(im_fname)
+
+
 
 ######################################################################
 # Inference and display
@@ -62,7 +72,9 @@ x, orig_img = data.transforms.presets.rcnn.load_test(im_fname)
 # We can use :py:func:`gluoncv.utils.viz.plot_bbox` to visualize the
 # results. We slice the results for the first image and feed them into `plot_bbox`:
 
+
 box_ids, scores, bboxes = net(x)
+print(box_ids, scores, bboxes)
 ax = utils.viz.plot_bbox(orig_img, bboxes[0], scores[0], box_ids[0], class_names=net.classes)
 
 plt.show()
