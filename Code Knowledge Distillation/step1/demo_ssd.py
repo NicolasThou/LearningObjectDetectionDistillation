@@ -6,6 +6,8 @@ im_fname = utils.download('https://github.com/dmlc/web-data/blob/master/' +
                           'gluoncv/detection/biking.jpg?raw=true',
                           path='biking.jpg')
 
+print(im_fname, type(im_fname))
+
 x, img = data.transforms.presets.ssd.load_test(im_fname, short=512)
 print('Shape of pre-processed image:', x.shape)
 
