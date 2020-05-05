@@ -18,6 +18,12 @@ from gluoncv import model_zoo, data, utils
 from gluoncv.model_zoo.rcnn.faster_rcnn import *
 
 """
+Teacher : 'faster_rcnn_resnet101_v1d_voc'
+Student : 'faster_rcnn_resnet50_v1b_voc'
+"""
+
+
+"""
 ======================================= Faster RCNN ================================================
 """
 
@@ -34,7 +40,7 @@ from gluoncv.model_zoo.rcnn.faster_rcnn import *
 # The returned model is a HybridBlock :py:class:`gluoncv.model_zoo.FasterRCNN`
 # with a default context of `cpu(0)`.
 
-net = model_zoo.get_model('faster_rcnn_resnet50_v1b_voc', pretrained=True)
+net = model_zoo.get_model('faster_rcnn_resnet101_v1d_coco', pretrained=True)
 
 
 ######################################################################
@@ -92,32 +98,12 @@ print("===================== Let's compare the two models ======================
 print()
 
 ax = utils.viz.plot_bbox(orig_img, bboxes[0], scores[0], box_ids[0], class_names=net.classes)
-
 plt.show()
 
-"""
-======================================= SSD ================================================
-"""
-
-net2 = model_zoo.get_model('ssd_512_resnet50_v1_voc', pretrained=True)
-im_fname = utils.download('https://github.com/dmlc/web-data/blob/master/' +
-                          'gluoncv/detection/biking.jpg?raw=true',
-                          path='biking.jpg')
-
-print(im_fname, type(im_fname))
-
-x, img = data.transforms.presets.ssd.load_test(im_fname, short=512)
-print('Shape of pre-processed image:', x.shape)
-
-class_IDs, scores, bounding_boxes = net2(x)
-#print(class_IDs, scores, bounding_boxes)
-
-ax = utils.viz.plot_bbox(img, bounding_boxes[0], scores[0],
-                         class_IDs[0], class_names=net2.classes)
+net2 = model_zoo.get_model('faster_rcnn_resnet50_v1b_coco', pretrained=True)
+box_ids2, scores2, bboxes2, cls_score2 = net(x)
+ax2 = utils.viz.plot_bbox(orig_img, bboxes2[0], scores2[0], box_ids2[0], class_names=net.classes)
 plt.show()
-
-
-
 
 """
 ========================== Compare the output during training and the output of the teacher =========================
@@ -126,11 +112,12 @@ plt.show()
 from mxnet import autograd
 from gluoncv import data
 
+"""
 with autograd.train_mode():
     cls_preds_ssd, box_preds_ssd, anchors_ssd = net2(x)
     print("Faster RCNN", bboxes)
     print(" SSD ", box_preds_ssd)
     print("soft target ", cls_score)
     print("cls_pred_SSD ", cls_preds_ssd)
-
+"""
 

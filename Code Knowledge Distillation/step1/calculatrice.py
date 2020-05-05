@@ -4,8 +4,7 @@ from mxnet.ndarray import *
 
 
 if __name__ == '__main__':
-    print("hello")
-    print(24656/5)
+
     pred_student = nd.random.uniform(-1, 1, (2, 5, 4))
     target = nd.random.uniform(-1, 1, (2, 5, 4))
     pred_teacher = nd.random.uniform(-1, 1, (2, 5, 4))
