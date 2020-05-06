@@ -444,6 +444,7 @@ class FasterRCNN(RCNN):
             return (cls_pred, box_pred, rpn_box, samples, matches, raw_rpn_score, raw_rpn_box,
                     anchors, cls_targets, box_targets, box_masks, indices)
 
+        boxe_prediction_training = cp.deepcopy(box_pred)
         box_pred = self.box_predictor(box_feat)
         # box_pred (B * N, C * 4) -> (B, N, C, 4)
         box_pred = box_pred.reshape((batch_size, num_roi, self.num_class, 4))
@@ -520,7 +521,7 @@ class FasterRCNN(RCNN):
         bboxes = F.slice_axis(result, axis=-1, begin=2, end=6)
         if self._additional_output:
             return ids, scores, bboxes, feat
-        return ids, scores, bboxes, cls_score
+        return ids, scores, bboxes, cls_score, boxe_prediction_training
 
 
 def get_faster_rcnn(name, dataset, pretrained=False, ctx=mx.cpu(),

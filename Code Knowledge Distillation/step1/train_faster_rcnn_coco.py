@@ -196,8 +196,7 @@ for ib, batch in enumerate(train_loader):
     if ib > 3:
         break
     #print("batch, batch.shape", batch, batch.shape)
-    print('data 0:', batch[0][0].shape, 'label 0:', batch[1][0].shape)
-    print('data 1:', batch[0][1].shape, 'label 1:', batch[1][1].shape)
+    #print('batch', batch)
 
 
 
@@ -316,25 +315,54 @@ for ib, batch in enumerate(train_loader):
 
 
 #  data, label
-#  rpn_cls_targets,
-#  rpn_box_targets
-#  rpn_box_masks
+#  rpn_cls_targets, region proposal classe for each image in a batch
+#  rpn_box_targets, for each image, we have boxes
+#  rpn_box_masks, for each boxes, some are ignored
+
+#  gt_label: (B, M), value [0, num_class), excluding background class.
+#  gt_box: (B, M, 4), input ground truth box corner coordinates.
 
 # ``cls_preds`` are the class predictions prior to softmax,
 # ``box_preds`` are bounding box offsets with one-to-one correspondence to proposals
-# ``roi`` is the proposal candidates
-#   samples are the sampling/matching results of RPN anchors.
-#   matches are the sampling/matching results of RPN anchors.
+# ``roi`` is the proposal candidates : (B, N, 4), input proposals
+#   samples are the sampling/matching results of RPN anchors. (B, N), value +1: positive / -1: negative.
+#   matches are the sampling/matching results of RPN anchors. (B, N), value [0, M), index to gt_label and gt_box.
+
 # ``rpn_score`` are the raw outputs from RPN's convolutional layers.
 #   rpn_box are the raw outputs from RPN's convolutional layers.
-#   cls_targets
-#   box_targets
-#   box_masks
+#   (rpn_score, rpn_box) Returns predicted scores and regions which are candidates of objects.
+
+#   cls_targets (B, N), value [0, num_class + 1), including background.
+#   box_targets (B, N, C, 4), only foreground class has nonzero target.
+#   box_masks : masks: (B, N_pos, C, 4) only positive anchors of the correct class has targets
 #  `anchors`` are absolute coordinates of corresponding anchors boxes.
+
+"""
+Recall : Unpacking Operator *
+
+Say you have a list of tuples and want to separate the elements of each tuple into independent sequences. 
+To do this, you can use zip() along with the unpacking operator *, like so:
+
+>>> pairs = [(1, 'a'), (2, 'b'), (3, 'c'), (4, 'd')]
+>>> numbers, letters = zip(*pairs)
+>>> numbers
+(1, 2, 3, 4)
+>>> letters
+('a', 'b', 'c', 'd')
+
+Here, you have a list of tuples containing some kind of mixed data. Then, you use the unpacking operator * to unzip 
+the data, creating two different lists (numbers and letters).
+
+In our case :
+==========
+
+zip(*batch) = [data1, data2, ... data5], [label1, ..., label5], ... , [rpn_box_masks1, .., rpn_box_masks5]
+
+"""
 
 
 for ib, batch in enumerate(train_loader):
-    if ib > 0:
+    if ib > 1:
         break
     with autograd.train_mode():
         for data, label, rpn_cls_targets, rpn_box_targets, rpn_box_masks in zip(*batch):
@@ -345,6 +373,7 @@ for ib, batch in enumerate(train_loader):
             cls_pred, box_pred, roi, samples, matches, rpn_score, rpn_box, anchors, cls_targets, \
                 box_targets, box_masks, _ = net(data.expand_dims(0), gt_box, gt_label)
 
+
             # box and class labels / data
             print('data:', data)  # dim 3x897x899
             print('gt_box:', gt_box)  # dim 1x9x4 : there are 9 ground truth box, with 4 coordinates each
@@ -352,27 +381,30 @@ for ib, batch in enumerate(train_loader):
 
             # RPN
             # -1 marks ignored label
-            print('rpn cls label:', rpn_cls_targets)  # dim 5x48735
-            # mask out ignored box label
-            print('rpn box label:', rpn_box_targets)  # dim 5x48735x4
-            print('rpn box mask:', rpn_box_masks)  # dim 5x48735x4
+            print('rpn cls label:', rpn_cls_targets)  # dim 5x48735 : for each image (batch size 5) in a batch, we have 48735 label (ignored label (-1), cat, dog...)
+            # mask out ignored box label corresponding to the ignored label
+            print('rpn box label:', rpn_box_targets)  # dim 5x48735x4 : for each image (batch size 5) in a batch, we have 48735 boxes with 4 coordinates
+            print('rpn box mask:', rpn_box_masks)  # dim 5x48735x4 : for each image (batch size 5) in a batch, for each boxe (48735 boxes) we have a mask for ignoring a box
 
-            # RCNN
-            # rcnn does not have ignored label
-            print('cls_targets (rcnn cls label) :', cls_targets)  # dim 1x128
+            # RCNN : the network output his target during training for the rcnn part after the RoI Pooling
+            # rcnn does not have ignored label equal to -1
+            print('cls_targets (rcnn cls label) :', cls_targets)  # dim 1x128 :
             # mask out ignored box label
             print('box_targets (rcnn box label):', box_targets)  # dim 1x32x80x4
-            print('box_masks (rcnn box mask):', box_masks)  # 1x32x80x4
+            print('box_masks (rcnn box mask):', box_masks)  # dim 1x32x80x4
 
             # Network
-            print("cls_pred ", cls_pred)  # 1x128x81
-            print("box_pred", box_pred)  # 1x32x80x4
-            print("roi", roi)  # 1x128x4
-            print("samples", samples)  # 1x128
-            print("matches", matches)  # 1x128
-            print("rpn_score", rpn_score)
-            print("rpn_box", rpn_box)
-            print("anchors", anchors)
+            # rpn_score = rpn_score.squeeze(axis=-1)
+            # num_rpn_pos = (rpn_cls_targets >= 0).sum()
+            print("cls_pred ", cls_pred)  # dim 1x128x81
+            print("box_pred", box_pred)  # dim 1x32x80x4
+            print("roi", roi)  # dim 1x128x4
+            print("samples", samples)  # dim 1x128
+            print("matches", matches)  # dim 1x128
+
+            print("rpn_score", rpn_score)  # dim 1x48735x1
+            print("rpn_box", rpn_box)  # dim 1x48735x4
+            print("anchors", anchors)  # dim 1x48735x4
 
 """
 ##########################################################
