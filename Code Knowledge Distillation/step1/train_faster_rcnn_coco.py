@@ -195,8 +195,10 @@ val_loader = DataLoader(val_dataset.transform(val_transform), batch_size, shuffl
 for ib, batch in enumerate(train_loader):
     if ib > 3:
         break
+    #print("batch, batch.shape", batch, batch.shape)
     print('data 0:', batch[0][0].shape, 'label 0:', batch[1][0].shape)
     print('data 1:', batch[0][1].shape, 'label 1:', batch[1][1].shape)
+
 
 
 ##########################################################
@@ -218,7 +220,8 @@ for ib, batch in enumerate(train_loader):
 from gluoncv import model_zoo
 
 net = model_zoo.get_model('faster_rcnn_resnet50_v1b_coco', pretrained_base=False)
-print(net)
+# Architecture of the student network
+#print(net)
 
 ##############################################################################
 # Faster-RCNN network is callable with image tensor
@@ -229,9 +232,10 @@ net.initialize()
 cids, scores, bboxes, _ = net(x)
 
 ##############################################################################
-# Faster-RCNN returns three values, where ``cids`` are the class labels,
+# Faster-RCNN returns three values, where
+# ``cids`` are the class labels,
 # ``scores`` are confidence scores of each prediction,
-# and ``bboxes`` are absolute coordinates of corresponding bounding boxes.
+# ``bboxes`` are absolute coordinates of corresponding bounding boxes.
 
 ##############################################################################
 # Faster-RCNN network behave differently during training mode:
@@ -246,11 +250,7 @@ with autograd.train_mode():
 
 ##############################################################################
 # In training mode, Faster-RCNN returns a lot of intermediate values, which we require to train in an end-to-end flavor,
-# where ``cls_preds`` are the class predictions prior to softmax,
-# ``box_preds`` are bounding box offsets with one-to-one correspondence to proposals
-# ``roi`` is the proposal candidates, ``samples`` and ``matches`` are the sampling/matching results of RPN anchors.
-# ``rpn_score`` and ``rpn_box`` are the raw outputs from RPN's convolutional layers.
-# and ``anchors`` are absolute coordinates of corresponding anchors boxes.
+# ``cls_preds`` , ``box_preds``, ``roi`` , ``rpn_score`` , `anchors``
 
 
 ##########################################################
@@ -279,8 +279,8 @@ rcnn_box_loss = mx.gluon.loss.HuberLoss()  # == smoothl1
 train_transform = presets.rcnn.FasterRCNNDefaultTrainTransform(short, max_size, net)
 # Return images, labels, rpn_cls_targets, rpn_box_targets, rpn_box_masks loosely
 batchify_fn = FasterRCNNTrainBatchify(net)
-# For the next part, we only use batch size 1
-batch_size = 1
+# For the next part, we only use batch size 5
+batch_size = 5
 train_loader = DataLoader(train_dataset.transform(train_transform), batch_size, shuffle=True,
                           batchify_fn=batchify_fn, last_batch='rollover', num_workers=num_workers)
 
@@ -288,6 +288,7 @@ train_loader = DataLoader(train_dataset.transform(train_transform), batch_size, 
 # This time we can see the data loader is actually returning the training targets for us.
 # Then it is very naturally a gluon training loop with Trainer and let it update the weights.
 
+"""
 for ib, batch in enumerate(train_loader):
     if ib > 0:
         break
@@ -306,10 +307,31 @@ for ib, batch in enumerate(train_loader):
             print('rpn box label:', rpn_box_targets.shape)
             print('rpn box mask:', rpn_box_masks.shape)
 
+"""
+
 ##########################################################
 # RCNN training targets
 # ---------------------
 # RCNN targets are generated with the intermediate outputs with the stored target generator.
+
+
+#  data, label
+#  rpn_cls_targets,
+#  rpn_box_targets
+#  rpn_box_masks
+
+# ``cls_preds`` are the class predictions prior to softmax,
+# ``box_preds`` are bounding box offsets with one-to-one correspondence to proposals
+# ``roi`` is the proposal candidates
+#   samples are the sampling/matching results of RPN anchors.
+#   matches are the sampling/matching results of RPN anchors.
+# ``rpn_score`` are the raw outputs from RPN's convolutional layers.
+#   rpn_box are the raw outputs from RPN's convolutional layers.
+#   cls_targets
+#   box_targets
+#   box_masks
+#  `anchors`` are absolute coordinates of corresponding anchors boxes.
+
 
 for ib, batch in enumerate(train_loader):
     if ib > 0:
@@ -323,16 +345,36 @@ for ib, batch in enumerate(train_loader):
             cls_pred, box_pred, roi, samples, matches, rpn_score, rpn_box, anchors, cls_targets, \
                 box_targets, box_masks, _ = net(data.expand_dims(0), gt_box, gt_label)
 
-            print('data:', data.shape)
-            # box and class labels
-            print('box:', gt_box.shape)
-            print('label:', gt_label.shape)
-            # rcnn does not have ignored label
-            print('rcnn cls label:', cls_targets.shape)
-            # mask out ignored box label
-            print('rcnn box label:', box_targets.shape)
-            print('rcnn box mask:', box_masks.shape)
+            # box and class labels / data
+            print('data:', data)
+            print('box:', gt_box)
+            print('label:', gt_label)
 
+            # RPN
+            # -1 marks ignored label
+            print('rpn cls label:', rpn_cls_targets)
+            # mask out ignored box label
+            print('rpn box label:', rpn_box_targets)
+            print('rpn box mask:', rpn_box_masks)
+
+            # RCNN
+            # rcnn does not have ignored label
+            print('rcnn cls label:', cls_targets)
+            # mask out ignored box label
+            print('rcnn box label:', box_targets)
+            print('rcnn box mask:', box_masks)
+
+            # Network
+            print("cls_pred ", cls_pred)
+            print("box_pred", box_pred)
+            print("roi", roi)
+            print("samples", samples)
+            print("matches", matches)
+            print("rpn_score", rpn_score)
+            print("rpn_box", rpn_box)
+            print("anchors", anchors)
+
+"""
 ##########################################################
 # Training loop
 # -------------
@@ -355,6 +397,9 @@ for ib, batch in enumerate(train_loader):
             # network forward
             cls_preds, box_preds, roi, samples, matches, rpn_score, rpn_box, anchors, cls_targets, \
                 box_targets, box_masks, _ = net(data.expand_dims(0), gt_box, gt_label)
+            
+            
+
 
             # losses of rpn
             rpn_score = rpn_score.squeeze(axis=-1)
@@ -364,6 +409,8 @@ for ib, batch in enumerate(train_loader):
             rpn_loss2 = rpn_box_loss(rpn_box, rpn_box_targets,
                                      rpn_box_masks) * rpn_box.size / num_rpn_pos
 
+
+
             # losses of rcnn
             num_rcnn_pos = (cls_targets >= 0).sum()
             rcnn_loss1 = rcnn_cls_loss(cls_preds, cls_targets,
@@ -372,15 +419,11 @@ for ib, batch in enumerate(train_loader):
             rcnn_loss2 = rcnn_box_loss(box_preds, box_targets, box_masks) * box_preds.size / \
                          box_preds.shape[0] / num_rcnn_pos
 
-        # some standard gluon training steps:
+
+
+            # some standard gluon training steps:
             autograd.backward([rpn_loss1, rpn_loss2, rcnn_loss1, rcnn_loss2])
     trainer.step(batch_size)
-
-##########################################################
-# .. hint::
-#
-#   Please checkout the full :download:`training script <../../../scripts/detection/faster_rcnn/train_faster_rcnn.py>` for complete implementation.
-
 
 ##########################################################
 # References
@@ -391,3 +434,4 @@ for ib, batch in enumerate(train_loader):
 # .. [Ren15] Shaoqing Ren and Kaiming He and Ross Girshick and Jian Sun. Faster {R-CNN}: Towards Real-Time Object Detection with Region Proposal Networks. NIPS 2015.
 # .. [He16] Kaiming He and Xiangyu Zhang and Shaoqing Ren and Jian Sun. Deep Residual Learning for Image Recognition. CVPR 2016.
 # .. [Lin17] Tsung-Yi Lin and Piotr Dollár and Ross Girshick and Kaiming He and Bharath Hariharan and Serge Belongie. Feature Pyramid Networks for Object Detection. CVPR 2017.
+"""

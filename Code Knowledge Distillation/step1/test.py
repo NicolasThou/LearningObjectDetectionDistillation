@@ -2,8 +2,8 @@
 ==============================================
 
 This article shows how to play with pre-trained Faster RCNN model.
-
 First let's import some necessary libraries:
+
 """
 from __future__ import print_function
 
@@ -19,8 +19,8 @@ from gluoncv.model_zoo.rcnn.faster_rcnn import *
 
 """
 
-Teacher : 'faster_rcnn_resnet101_v1d_voc'
-Student : 'faster_rcnn_resnet50_v1b_voc'
+Teacher : 'faster_rcnn_resnet101_v1d_coco'
+Student : 'faster_rcnn_resnet50_v1b_coco'
 
 """
 
@@ -101,6 +101,7 @@ net2 = model_zoo.get_model('faster_rcnn_resnet50_v1b_coco', pretrained=True)
 box_ids2, scores2, bboxes2, cls_score2 = net(x)
 ax2 = utils.viz.plot_bbox(orig_img, bboxes2[0], scores2[0], box_ids2[0], class_names=net2.classes)
 plt.show()
+
 
 """
 ========================== Compare the output during training and the output of the teacher =========================
