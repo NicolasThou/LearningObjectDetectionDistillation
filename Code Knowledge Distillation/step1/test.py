@@ -18,8 +18,10 @@ from gluoncv import model_zoo, data, utils
 from gluoncv.model_zoo.rcnn.faster_rcnn import *
 
 """
+
 Teacher : 'faster_rcnn_resnet101_v1d_voc'
 Student : 'faster_rcnn_resnet50_v1b_voc'
+
 """
 
 
@@ -86,12 +88,6 @@ x, orig_img = data.transforms.presets.rcnn.load_test(im_fname)
 
 box_ids, scores, bboxes, cls_score = net(x)
 
-
-#print(box_ids.shape, scores.shape, bboxes.shape)  # dim [1, 6000, 1], dim [1, 6000, 1], dim [1, 6000, 4]
-#print(box_ids, scores, bboxes)
-#print(net.classes)
-#print(len(net.classes))
-#print(cls_score, cls_score.shape)
 print()
 print()
 print("===================== Let's compare the two models ==============================")
@@ -100,24 +96,12 @@ print()
 ax = utils.viz.plot_bbox(orig_img, bboxes[0], scores[0], box_ids[0], class_names=net.classes)
 plt.show()
 
+
 net2 = model_zoo.get_model('faster_rcnn_resnet50_v1b_coco', pretrained=True)
 box_ids2, scores2, bboxes2, cls_score2 = net(x)
-ax2 = utils.viz.plot_bbox(orig_img, bboxes2[0], scores2[0], box_ids2[0], class_names=net.classes)
+ax2 = utils.viz.plot_bbox(orig_img, bboxes2[0], scores2[0], box_ids2[0], class_names=net2.classes)
 plt.show()
 
 """
 ========================== Compare the output during training and the output of the teacher =========================
 """
-
-from mxnet import autograd
-from gluoncv import data
-
-"""
-with autograd.train_mode():
-    cls_preds_ssd, box_preds_ssd, anchors_ssd = net2(x)
-    print("Faster RCNN", bboxes)
-    print(" SSD ", box_preds_ssd)
-    print("soft target ", cls_score)
-    print("cls_pred_SSD ", cls_preds_ssd)
-"""
-
