@@ -70,10 +70,15 @@ def compare_prediction_time(teacher, student):
 #     dump(dataset_to_dump, f'batchs/batch_{i}.joblib')
 
 # networks
-
 student = model_zoo.get_model('faster_rcnn_resnet50_v1b_coco', pretrained=True)
 teacher = model_zoo.get_model('faster_rcnn_resnet101_v1d_coco', pretrained=True)
 
-batch = load('batchs/batch_0.joblib')
-out = teacher(batch[0])
-print(out)
+for i, batch_file in enumerate(os.listdir('batchs')):
+    print(i)
+    batch = load(os.path.join('batchs', batch_file))
+    predictions = []
+    for image in batch[0]:
+        out = teacher(image)
+        predictions.append(out)
+
+    dump(predictions, f'teacher_predictions/batch_{i}.joblib')
