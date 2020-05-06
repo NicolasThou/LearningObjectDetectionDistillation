@@ -73,6 +73,9 @@ im_fname = utils.download('https://github.com/dmlc/web-data/blob/master/' +
 x, orig_img = data.transforms.presets.rcnn.load_test(im_fname)
 
 
+print()
+print("===================== Let's compare the two models ==============================")
+print()
 
 ######################################################################
 # Inference and display
@@ -92,12 +95,9 @@ end = time.time()
 print(f'Resnet 101 took {end-start} seconds')
 
 # save the resulting predictions
-nd.save('resnet101_predictions', [bboxes, scores, box_ids])
+nd.save('resnet101_predictions', [cls_score])
 
-print()
-print()
-print("===================== Let's compare the two models ==============================")
-print()
+
 
 # bboxes, scores, box_ids = nd.load('resnet101_predictions')  # load the predictions
 ax = utils.viz.plot_bbox(orig_img, bboxes[0], scores[0], box_ids[0], class_names=net.classes)
@@ -110,8 +110,6 @@ start = time.time()
 box_ids2, scores2, bboxes2, cls_score2 = net(x)
 end = time.time()
 print(f'Resnet 50 took {end-start} seconds')
-
-nd.save('resnet50_predictions', [bboxes, scores, box_ids])
 
 # bboxes, scores, box_ids = nd.load('resnet50_predictions')  # load the predictions
 ax2 = utils.viz.plot_bbox(orig_img, bboxes2[0], scores2[0], box_ids2[0], class_names=net2.classes)

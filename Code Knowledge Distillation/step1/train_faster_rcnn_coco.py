@@ -346,30 +346,30 @@ for ib, batch in enumerate(train_loader):
                 box_targets, box_masks, _ = net(data.expand_dims(0), gt_box, gt_label)
 
             # box and class labels / data
-            print('data:', data)
-            print('box:', gt_box)
-            print('label:', gt_label)
+            print('data:', data)  # dim 3x897x899
+            print('gt_box:', gt_box)  # dim 1x9x4 : there are 9 ground truth box, with 4 coordinates each
+            print('gt_label:', gt_label)  # dim 1x9x1 : there are 1 label per box (9 boxes)
 
             # RPN
             # -1 marks ignored label
-            print('rpn cls label:', rpn_cls_targets)
+            print('rpn cls label:', rpn_cls_targets)  # dim 5x48735
             # mask out ignored box label
-            print('rpn box label:', rpn_box_targets)
-            print('rpn box mask:', rpn_box_masks)
+            print('rpn box label:', rpn_box_targets)  # dim 5x48735x4
+            print('rpn box mask:', rpn_box_masks)  # dim 5x48735x4
 
             # RCNN
             # rcnn does not have ignored label
-            print('rcnn cls label:', cls_targets)
+            print('cls_targets (rcnn cls label) :', cls_targets)  # dim 1x128
             # mask out ignored box label
-            print('rcnn box label:', box_targets)
-            print('rcnn box mask:', box_masks)
+            print('box_targets (rcnn box label):', box_targets)  # dim 1x32x80x4
+            print('box_masks (rcnn box mask):', box_masks)  # 1x32x80x4
 
             # Network
-            print("cls_pred ", cls_pred)
-            print("box_pred", box_pred)
-            print("roi", roi)
-            print("samples", samples)
-            print("matches", matches)
+            print("cls_pred ", cls_pred)  # 1x128x81
+            print("box_pred", box_pred)  # 1x32x80x4
+            print("roi", roi)  # 1x128x4
+            print("samples", samples)  # 1x128
+            print("matches", matches)  # 1x128
             print("rpn_score", rpn_score)
             print("rpn_box", rpn_box)
             print("anchors", anchors)
