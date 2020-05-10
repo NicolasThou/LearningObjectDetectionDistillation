@@ -110,6 +110,7 @@ train_loader = DataLoader(train_dataset.transform(train_transform), batch_size, 
                           batchify_fn=batchify_fn, last_batch='rollover', num_workers=num_workers)
 
 teacher = model_zoo.get_model('faster_rcnn_resnet50_v1b_voc', pretrained=True)
+matplotlib.use('TkAgg')
 for ib, batch in enumerate(train_loader):
     print(ib)
     if ib > 3:
@@ -117,10 +118,9 @@ for ib, batch in enumerate(train_loader):
     with autograd.record():
         for image_idx, (data_batch, label, rpn_cls_targets, rpn_box_targets, rpn_box_masks) in enumerate(zip(*batch)):
             with autograd.pause():
-                teacher_img = train_dataset[batch_size * ib + image_idx][0]
-                transformed_img = presets.rcnn.transform_test(teacher_img)[0]
-                ids, scores, bboxes, cls_probailities = teacher(transformed_img)
-                teacher_label = train_dataset[batch_size * ib + image_idx][1]
+                teacher_img, teacher_label = train_dataset[batch_size * ib + image_idx]
+                transformed_img, original_teacher_img = presets.rcnn.transform_test(teacher_img)
+                ids, scores, bboxes, cls_prob = teacher(transformed_img)
 
             # for i, score in enumerate(scores[0]):
             #     if not score < 0.5 and not ids[0][i] < 0:
@@ -132,10 +132,15 @@ for ib, batch in enumerate(train_loader):
 
             train_image = data_batch
             train_image = train_image.transpose((1, 2, 0)) * nd.array((0.229, 0.224, 0.225)) + nd.array((0.485, 0.456, 0.406))
-            train_image = (train_image * 255).asnumpy().astype('uint8')
-            matplotlib.use('TkAgg')
-            ax = viz.plot_bbox(train_image, teacher_label[:, 0:4], mx.ndarray.ones(teacher_label.shape[0]), teacher_label[:, 4], class_names=teacher.classes)
+            train_image = (train_image * 255).asnumpy()
+
+            ax = viz.plot_bbox(original_teacher_img, gt_box[0], mx.ndarray.ones(gt_box[0].shape[0]), gt_label[0], class_names=teacher.classes)
+            # ax = viz.plot_bbox(train_image, bboxes[0], scores[0], ids[0], class_names=teacher.classes)
+            # ax = viz.plot_bbox(original_teacher_img, bboxes[0], scores[0], ids[0], class_names=teacher.classes)
+            # ax = viz.plot_bbox(teacher_img, teacher_label[:, :4], mx.ndarray.ones(teacher_label.shape[0]), teacher_label[:, 4], class_names=teacher.classes)
             plt.show()
+
+            continue
 
             # network forward
             cls_preds, box_preds, roi, samples, matches, rpn_score, rpn_box, anchors, cls_targets, \
