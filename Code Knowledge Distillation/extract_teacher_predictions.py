@@ -57,14 +57,13 @@ def compare_prediction_time(teacher, student):
 
 
 def predict_coco_dataset(net):
-    # # display COCO images
     train_dataset = data.COCODetection(splits=['instances_train2017'])
     matplotlib.use('TkAgg')
     for image, label in train_dataset:
         # img = image.asnumpy()
         # plt.imshow(img)
         input, image = data.transforms.presets.rcnn.transform_test(image)
-        ids, scores, bboxes, _ = net(input)
+        ids, scores, bboxes, cls_probailities = net(input)
         ax = viz.plot_bbox(image, bboxes[0], scores[0], ids[0], class_names=net.classes)
         plt.show()
 
@@ -91,7 +90,9 @@ def save_batches():
 student = model_zoo.get_model('faster_rcnn_resnet50_v1b_coco', pretrained=True)
 teacher = model_zoo.get_model('faster_rcnn_resnet101_v1d_coco', pretrained=True)
 
+predict_coco_dataset(teacher)
 
+"""
 for i, batch_file in enumerate(os.listdir('batchs')):
     print(i)
     if i > 0:
@@ -108,3 +109,4 @@ for i, batch_file in enumerate(os.listdir('batchs')):
         predictions.append([ids, scores, bboxes, cls_scores])
 
     # dump(predictions, f'teacher_predictions/batch_{i}.joblib')
+"""
