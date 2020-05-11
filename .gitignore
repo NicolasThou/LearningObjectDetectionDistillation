@@ -2,3 +2,5 @@
 !*.py
 !Code Knowledge Distillation
 !Code Knowledge Distillation/*.py
+!Code Knowledge Distillation/*/
+!Code Knowledge Distillation/*/*.py
