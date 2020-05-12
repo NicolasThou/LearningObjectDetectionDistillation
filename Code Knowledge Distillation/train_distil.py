@@ -22,12 +22,8 @@ def extract_boxes(scores, labels):
 
     idx = []
     for i in range(len(scores)):
-        if i in [45000, 45001, 45002, 46000, 50000, 55000]:
-            print(f'{i} | {scores[i].asnumpy().item()}')
-
         if scores[i] < 0.1 or labels[i] < 0:
             continue
-
         idx.append(i)
 
     return idx
@@ -78,8 +74,7 @@ train_transform = presets.rcnn.FasterRCNNDefaultTrainTransform(net=student, flip
 # Return images, labels, rpn_cls_targets, rpn_box_targets, rpn_box_masks loosely
 batchify_fn = FasterRCNNTrainBatchify(student)
 
-batch_size = 32
-train_loader = DataLoader(train_dataset.transform(train_transform), batch_size, shuffle=False,
+train_loader = DataLoader(train_dataset.transform(train_transform), batch_size=1, shuffle=False,
                           batchify_fn=batchify_fn, last_batch='rollover', num_workers=0)
 
 trainer = Trainer(student.collect_params(), 'sgd', {'learning_rate': 0.01, 'wd': 0.0005, 'momentum': 0.9})
@@ -89,14 +84,14 @@ temp = 3
 teacher.temperature = temp
 writer = SummaryWriter()
 for batch_idx, batch in enumerate(train_loader):
-    if batch_idx > 0:
+    if batch_idx > 5:
         break
     with autograd.record():
         loss = []
         for image_idx, (data_batch, label, rpn_cls_targets, rpn_box_targets, rpn_box_masks) in enumerate(zip(*batch)):
             # teacher predictions
             with autograd.pause():
-                teacher_img, teacher_label = train_dataset[batch_size * batch_idx + image_idx]
+                teacher_img, teacher_label = train_dataset[batch_idx]
                 transformed_img, original_teacher_img = presets.rcnn.transform_test(teacher_img)
                 ids, scores, bboxes, teacher_prob = teacher(transformed_img)
 
@@ -158,8 +153,8 @@ for batch_idx, batch in enumerate(train_loader):
                          mu*rcnn_loss1_hard.asnumpy().item() + (1-mu)*rcnn_loss1_soft.asnumpy().item(),
                          rcnn_loss2_soft.asnumpy().item()])
     # make an optimization step
-    trainer.step(batch_size)
-    distil_trainer.step(batch_size)
+    trainer.step(batch_size=1)
+    distil_trainer.step(batch_size=1)
 
     if ((batch_idx+1) % 10) == 0:
         student.save_parameters(f'params/model_{batch_idx%10}.params')
@@ -175,8 +170,8 @@ for batch_idx, batch in enumerate(train_loader):
     writer.add_scalar('RPN/Regression loss no distil', loss[1], batch_idx)
     writer.add_scalar('RPN/Regression loss distil', loss[5], batch_idx)
 
-    writer.add_scalar('RCNN/Classification loss no distil', loss[2], batch_size)
-    writer.add_scalar('RCNN/Classification loss distil', loss[6], batch_size)
+    writer.add_scalar('RCNN/Classification loss no distil', loss[2], batch_idx)
+    writer.add_scalar('RCNN/Classification loss distil', loss[6], batch_idx)
 
-    writer.add_scalar('RCNN/Regression loss no distil', loss[3], batch_size)
-    writer.add_scalar('RCNN/Regression loss distil', loss[7], batch_size)
+    writer.add_scalar('RCNN/Regression loss no distil', loss[3], batch_idx)
+    writer.add_scalar('RCNN/Regression loss distil', loss[7], batch_idx)
