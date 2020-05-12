@@ -79,10 +79,10 @@ batch_size = 1
 train_loader = DataLoader(train_dataset.transform(train_transform), batch_size=batch_size, shuffle=False,
                           batchify_fn=batchify_fn, last_batch='rollover', num_workers=0)
 
-trainer = Trainer(student.collect_params(), 'sgd', {'learning_rate': 0.01, 'wd': 0.0005, 'momentum': 0.9})
-distil_trainer = Trainer(distil_student.collect_params(), 'sgd', {'learning_rate': 0.01, 'wd': 0.0005, 'momentum': 0.9})
+trainer = Trainer(student.collect_params(), 'sgd', {'learning_rate': 0.001, 'wd': 0.0005, 'momentum': 0.9})
+distil_trainer = Trainer(distil_student.collect_params(), 'sgd', {'learning_rate': 0.001, 'wd': 0.0005, 'momentum': 0.9})
 
-temp = 3
+temp = 1
 teacher.temperature = temp
 writer = SummaryWriter()
 for batch_idx, batch in enumerate(train_loader):
@@ -161,7 +161,7 @@ for batch_idx, batch in enumerate(train_loader):
 
     end = time.time()
 
-    if ((batch_idx+1) % 100) == 0:
+    if ((batch_idx+1) % 50) == 0:
         student.save_parameters(f'params/model_{batch_idx%10}.params')
         distil_student.save_parameters(f'params/model_distil_{batch_idx%10}.params')
 
