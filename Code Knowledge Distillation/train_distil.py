@@ -79,14 +79,14 @@ batch_size = 1
 train_loader = DataLoader(train_dataset.transform(train_transform), batch_size=batch_size, shuffle=False,
                           batchify_fn=batchify_fn, last_batch='rollover', num_workers=0)
 
-trainer = Trainer(student.collect_params(), 'sgd', {'learning_rate': 0.001, 'wd': 0.0005, 'momentum': 0.9})
-distil_trainer = Trainer(distil_student.collect_params(), 'sgd', {'learning_rate': 0.001, 'wd': 0.0005, 'momentum': 0.9})
+trainer = Trainer(student.collect_params(), 'sgd', {'learning_rate': 0.01, 'wd': 0.0005, 'momentum': 0.9})
+distil_trainer = Trainer(distil_student.collect_params(), 'sgd', {'learning_rate': 0.01, 'wd': 0.0005, 'momentum': 0.9})
 
 temp = 1
 teacher.temperature = temp
 writer = SummaryWriter()
 for batch_idx, batch in enumerate(train_loader):
-    if batch_idx > 5:
+    if batch_idx > 400:
         break
     with autograd.record():
         loss = []
@@ -94,9 +94,10 @@ for batch_idx, batch in enumerate(train_loader):
             start = time.time()
             # teacher predictions
             with autograd.pause():
-                teacher_img, teacher_label = train_dataset[batch_idx]
-                transformed_img, original_teacher_img = presets.rcnn.transform_test(teacher_img)
-                ids, scores, bboxes, teacher_prob = teacher(transformed_img)
+                # teacher_img, teacher_label = train_dataset[batch_idx]
+                # transformed_img, original_teacher_img = presets.rcnn.transform_test(teacher_img)
+                # ids, scores, bboxes, teacher_prob = teacher(transformed_img)
+                ids, scores, bboxes, teacher_prob = teacher(data_batch.expand_dims(0))
 
             # teacher bounding boxes and labels
             idx = extract_boxes(scores[0], ids[0])
@@ -162,8 +163,8 @@ for batch_idx, batch in enumerate(train_loader):
     end = time.time()
 
     if ((batch_idx+1) % 50) == 0:
-        student.save_parameters(f'params/model_{batch_idx%10}.params')
-        distil_student.save_parameters(f'params/model_distil_{batch_idx%10}.params')
+        student.save_parameters(f'params/model_{batch_idx}.params')
+        distil_student.save_parameters(f'params/model_distil_{batch_idx}.params')
 
     # update loss graphs
     loss = np.mean(loss, axis=0).tolist()
