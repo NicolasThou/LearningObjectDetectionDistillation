@@ -14,6 +14,7 @@ from torch.utils.tensorboard import SummaryWriter
 import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
+import time
 matplotlib.use('TkAgg')
 
 
@@ -74,7 +75,8 @@ train_transform = presets.rcnn.FasterRCNNDefaultTrainTransform(net=student, flip
 # Return images, labels, rpn_cls_targets, rpn_box_targets, rpn_box_masks loosely
 batchify_fn = FasterRCNNTrainBatchify(student)
 
-train_loader = DataLoader(train_dataset.transform(train_transform), batch_size=1, shuffle=False,
+batch_size = 1
+train_loader = DataLoader(train_dataset.transform(train_transform), batch_size=batch_size, shuffle=False,
                           batchify_fn=batchify_fn, last_batch='rollover', num_workers=0)
 
 trainer = Trainer(student.collect_params(), 'sgd', {'learning_rate': 0.01, 'wd': 0.0005, 'momentum': 0.9})
@@ -89,6 +91,7 @@ for batch_idx, batch in enumerate(train_loader):
     with autograd.record():
         loss = []
         for image_idx, (data_batch, label, rpn_cls_targets, rpn_box_targets, rpn_box_masks) in enumerate(zip(*batch)):
+            start = time.time()
             # teacher predictions
             with autograd.pause():
                 teacher_img, teacher_label = train_dataset[batch_idx]
@@ -153,16 +156,18 @@ for batch_idx, batch in enumerate(train_loader):
                          mu*rcnn_loss1_hard.asnumpy().item() + (1-mu)*rcnn_loss1_soft.asnumpy().item(),
                          rcnn_loss2_soft.asnumpy().item()])
     # make an optimization step
-    trainer.step(batch_size=1)
-    distil_trainer.step(batch_size=1)
+    trainer.step(batch_size)
+    distil_trainer.step(batch_size)
 
-    if ((batch_idx+1) % 10) == 0:
+    end = time.time()
+
+    if ((batch_idx+1) % 100) == 0:
         student.save_parameters(f'params/model_{batch_idx%10}.params')
         distil_student.save_parameters(f'params/model_distil_{batch_idx%10}.params')
 
     # update loss graphs
     loss = np.mean(loss, axis=0).tolist()
-    print(f'batch : {batch_idx} | loss no distil : {sum(loss[:4])} | loss distil : {sum(loss[4:])}')
+    print(f'batch : {batch_idx} | loss no distil : {sum(loss[:4])} | loss distil : {sum(loss[4:])} | time : {end-start}')
 
     writer.add_scalar('RPN/Classification loss no distil', loss[0], batch_idx)
     writer.add_scalar('RPN/Classification loss distil', loss[4], batch_idx)
