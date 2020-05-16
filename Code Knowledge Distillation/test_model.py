@@ -76,9 +76,6 @@ for batch_idx, batch in enumerate(train_loader):
         gt_label = data_label[:, :, 4:5]
         gt_box = data_label[:, :, :4]
 
-        print(bboxes[0])
-        print(gt_box[0])
-
         train_image = inverse_transformation(data_img)  # inverse transformation to get image
         # viz.plot_bbox(original_teacher_img, gt_box[0], mx.ndarray.ones(gt_box[0].shape[0]), gt_label[0], class_names=teacher.classes)
         # viz.plot_bbox(original_teacher_img, bboxes[0], scores[0], ids[0], class_names=teacher.classes)
