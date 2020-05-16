@@ -13,9 +13,9 @@ from gluoncv.utils import viz
 from torch.utils.tensorboard import SummaryWriter
 import matplotlib
 import matplotlib.pyplot as plt
+import tkinter
 import numpy as np
 import time
-matplotlib.use('TkAgg')
 
 
 def extract_boxes(scores, labels):
@@ -23,7 +23,7 @@ def extract_boxes(scores, labels):
 
     idx = []
     for i in range(len(scores)):
-        if scores[i] < 0.1 or labels[i] < 0:
+        if scores[i] < 0.5 or labels[i] < 0:
             continue
         idx.append(i)
 
@@ -79,12 +79,13 @@ batch_size = 1
 train_loader = DataLoader(train_dataset.transform(train_transform), batch_size=batch_size, shuffle=False,
                           batchify_fn=batchify_fn, last_batch='rollover', num_workers=0)
 
-trainer = Trainer(student.collect_params(), 'sgd', {'learning_rate': 0.01, 'wd': 0.0005, 'momentum': 0.9})
-distil_trainer = Trainer(distil_student.collect_params(), 'sgd', {'learning_rate': 0.01, 'wd': 0.0005, 'momentum': 0.9})
+trainer = Trainer(student.collect_params(), 'sgd', {'learning_rate': 0.001, 'wd': 0.0005, 'momentum': 0.9, 'clip_gradient': 1.0})
+distil_trainer = Trainer(distil_student.collect_params(), 'sgd', {'learning_rate': 0.001, 'wd': 0.0005, 'momentum': 0.9, 'clip_gradient': 1.0})
 
 temp = 1
 teacher.temperature = temp
 writer = SummaryWriter()
+matplotlib.use('TkAgg')
 for batch_idx, batch in enumerate(train_loader):
     if batch_idx > 400:
         break
