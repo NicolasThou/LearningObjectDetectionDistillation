@@ -52,11 +52,15 @@ def teacher_bounded_regression_loss(y, teacher_pred, student_pred):
     else:
         return 0
 
-# we train the student on the COCO dataset; this latter has to be downladed before training using the script mscoco.py
+
+softmax_temperature = 1
+
+# we train the student on the COCO dataset; this latter has to be downladed before using the script mscoco.py
 train_dataset = data.COCODetection(splits=['instances_train2017'])
 
-# the teacher use Restnet101 as backbone feature extractor
+# the teacher uses Resnet101 as backbone feature extractor
 teacher = model_zoo.get_model('faster_rcnn_resnet101_v1d_coco', pretrained=True)
+teacher.temperature = softmax_temperature
 
 # the distil student model
 distil_student = model_zoo.get_model('faster_rcnn_resnet50_v1b_coco', pretrained=False)
@@ -66,35 +70,31 @@ distil_student.initialize()
 student = model_zoo.get_model('faster_rcnn_resnet50_v1b_coco', pretrained=False)
 student.initialize()
 
-
-# the loss to penalize incorrect foreground/background prediction
-rpn_cls_loss = mx.gluon.loss.SigmoidBinaryCrossEntropyLoss(from_sigmoid=False)
-# the loss to penalize inaccurate anchor boxes
-rpn_box_loss = mx.gluon.loss.HuberLoss(rho=1 / 9.)  # == smoothl1
-# the loss to penalize incorrect classification prediction.
-rcnn_cls_loss = mx.gluon.loss.SoftmaxCrossEntropyLoss()
-# and finally the loss to penalize inaccurate proposals
-rcnn_box_loss = mx.gluon.loss.HuberLoss()  # == smoothl1
-
-
-# if we provide network to the training transform function, it will compute training targets
-# disable horizontal flip so image given to teacher match image from batch
-train_transform = presets.rcnn.FasterRCNNDefaultTrainTransform(net=student)
-
-# return images, labels, rpn_cls_targets, rpn_box_targets, rpn_box_masks loosely
-batchify_fn = FasterRCNNTrainBatchify(student)
-
-batch_size = 1
-train_loader = DataLoader(train_dataset.transform(train_transform), batch_size=batch_size, shuffle=True,
-                          batchify_fn=batchify_fn, last_batch='rollover')
-
+# optimizers
 trainer = Trainer(student.collect_params(), 'sgd', {'learning_rate': 0.001, 'wd': 0.0005, 'momentum': 0.9, 'clip_gradient': 1.0})
 distil_trainer = Trainer(distil_student.collect_params(), 'sgd', {'learning_rate': 0.001, 'wd': 0.0005, 'momentum': 0.9, 'clip_gradient': 1.0})
 
-temp = 1
-teacher.temperature = temp
-writer = SummaryWriter()
+# loss to penalize incorrect foreground/background prediction
+rpn_cls_loss = mx.gluon.loss.SigmoidBinaryCrossEntropyLoss(from_sigmoid=False)
+# loss to penalize inaccurate anchor boxes
+rpn_box_loss = mx.gluon.loss.HuberLoss(rho=1 / 9.)
+# loss to penalize incorrect classification prediction.
+rcnn_cls_loss = mx.gluon.loss.SoftmaxCrossEntropyLoss()
+# loss to penalize inaccurate proposals
+rcnn_box_loss = mx.gluon.loss.HuberLoss()
+
+
+# if we provide network to the training transform function, it will compute training targets
+train_transform = presets.rcnn.FasterRCNNDefaultTrainTransform(net=student)
+
+# utility to create the batches according to student parameters, speed up learning
+batchify_fn = FasterRCNNTrainBatchify(student)
+
+# data loader used to go through the data set
+train_loader = DataLoader(train_dataset.transform(train_transform), batch_size=1, shuffle=True, batchify_fn=batchify_fn, last_batch='rollover')
+
 matplotlib.use('TkAgg')
+writer = SummaryWriter()
 for batch_idx, batch in enumerate(train_loader):
     if batch_idx > 2000:
         break
@@ -106,7 +106,7 @@ for batch_idx, batch in enumerate(train_loader):
                 # teacher predictions
                 ids, scores, bboxes, teacher_prob = teacher(data_batch.expand_dims(0))
 
-            # teacher bounding boxes and labels
+            # extract teacher bounding boxes and labels that are legitimate regarding the scores and the labels
             idx = extract_boxes(scores[0], ids[0])
             bboxes = bboxes[:, idx, :]
             scores = scores[:, idx, :]
@@ -117,8 +117,8 @@ for batch_idx, batch in enumerate(train_loader):
             gt_label = label[:, :, 4:5]
             gt_box = label[:, :, :4]
 
-            # visualize the image with bounding box (first one is ground truth, second one is teacher predictions)
-            visualize_data(data_batch, gt_box[0], gt_label[0], bboxes[0], scores[0], ids[0], teacher.classes)
+            # visualize the image with bounding boxes and labels (first one is ground truth, second one is teacher predictions)
+            visualize_data(data_batch, gt_box[0], gt_label[0], bboxes[0], scores[0], ids[0], train_dataset.CLASSES)
 
             # forward pass
             cls_preds_soft, box_preds_soft, _, _, _, _, _, _, cls_targets_soft, box_targets_soft, box_masks_soft, _ = distil_student(data_batch.expand_dims(0), bboxes, ids)
@@ -142,13 +142,15 @@ for batch_idx, batch in enumerate(train_loader):
             num_rcnn_pos_hard = (cls_targets_hard >= 0).sum()
             rcnn_loss1_hard = rcnn_cls_loss(cls_preds_hard, cls_targets_hard, cls_targets_hard >= 0) * cls_targets_hard.size / cls_targets_hard.shape[0] / num_rcnn_pos_hard
             num_rcnn_pos_soft = (cls_targets_soft >= 0).sum()
-            rcnn_loss1_soft = rcnn_cls_loss(cls_preds_soft/temp, cls_targets_soft, cls_targets_soft >= 0) * cls_targets_soft.size / cls_targets_soft.shape[0] / num_rcnn_pos_soft
+            rcnn_loss1_soft = rcnn_cls_loss(cls_preds_soft/softmax_temperature, cls_targets_soft, cls_targets_soft >= 0) * cls_targets_soft.size / cls_targets_soft.shape[0] / num_rcnn_pos_soft
             rcnn_loss2_soft = (rcnn_box_loss(box_preds_soft, box_targets_soft, box_masks_soft) * box_preds_soft.size / box_preds_soft.shape[0] / num_rcnn_pos_soft) + teacher_bounded_regression_loss(box_targets, box_targets_soft, box_preds_soft)
 
             # compute backward gradient
-            autograd.backward([rpn_loss1, rpn_loss2, rcnn_loss1, rcnn_loss2, rpn_loss1_hard, rpn_loss2_hard, rcnn_loss1_hard, rcnn_loss1_soft, rcnn_loss2_soft])
+            autograd.backward([rpn_loss1, rpn_loss2, rcnn_loss1, rcnn_loss2,
+                               rpn_loss1_hard, rpn_loss2_hard, rcnn_loss1_hard,
+                               rcnn_loss1_soft, rcnn_loss2_soft])
 
-            mu = 0.5
+            mu = 0.5  # balancing coefficient
             loss.append([rpn_loss1.asnumpy().item(), rpn_loss2.asnumpy().item(),
                          rcnn_loss1.asnumpy().item(), rcnn_loss2.asnumpy().item(),
                          rpn_loss1_hard.asnumpy().item(), rpn_loss2_hard.asnumpy().item(),
@@ -156,18 +158,18 @@ for batch_idx, batch in enumerate(train_loader):
                          rcnn_loss2_soft.asnumpy().item()])
 
     # make an optimization step
-    trainer.step(batch_size)
-    distil_trainer.step(batch_size)
+    trainer.step(batch_size=1)
+    distil_trainer.step(batch_size=1)
     end = time.time()
 
-    # save the model each 500 image
+    # save the models each 500 image
     if ((batch_idx+1) % 500) == 0:
         student.save_parameters(f'params/model_{batch_idx}.params')
         distil_student.save_parameters(f'params/model_distil_{batch_idx}.params')
 
     # display the loss metrics
     loss = np.mean(loss, axis=0).tolist()
-    print(f'batch : {batch_idx} | loss no distil : {sum(loss[:4])} | loss distil : {sum(loss[4:])} | time : {end-start}')
+    print(f'batch: {batch_idx} | loss no distil: {sum(loss[:4])} | loss distil: {sum(loss[4:])} | time: {end-start}')
 
     # add the loss metrics to tensorboard
     writer.add_scalar('RPN/Classification loss no distil', loss[0], batch_idx)
