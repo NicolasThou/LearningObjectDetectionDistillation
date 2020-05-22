@@ -1,8 +1,8 @@
 # Knowledge Distillation for Object Detection
 
 
-## FOR THE MODEL PARAMETER, GO TO THE FOLLOWING GOOGLE DRIVE
-https://drive.google.com/drive/folders/1Mgj8nQN53TRgcebDSwfUckR-DRS5j4xr?usp=sharing
+	FOR THE MODEL PARAMETER, GO TO THE FOLLOWING GOOGLE DRIVE
+	https://drive.google.com/drive/folders/1Mgj8nQN53TRgcebDSwfUckR-DRS5j4xr?usp=sharing
 
 In this folder you'll find the files to train and test object detection models using the Knowledge Distillation framework developped in [1].
 
