@@ -12,7 +12,6 @@ from .rcnn_target import RCNNTargetSampler, RCNNTargetGenerator
 from ..rcnn import custom_rcnn_fpn
 from ....model_zoo.rcnn import RCNN
 from ....model_zoo.rcnn.rpn import RPN
-import copy as cp
 
 
 __all__ = ['FasterRCNN', 'get_faster_rcnn', 'custom_faster_rcnn_fpn']
@@ -187,6 +186,7 @@ class FasterRCNN(RCNN):
         if rpn_test_post_nms > rpn_test_pre_nms:
             rpn_test_post_nms = rpn_test_pre_nms
 
+        self.temperature = 1
         self.ashape = alloc_size[0]
         self._min_stage = min_stage
         self._max_stage = max_stage
@@ -346,7 +346,6 @@ class FasterRCNN(RCNN):
             The ground-truth bbox tensor with shape (B, N, 4).
         gt_label : type, only required during training
             The ground-truth label tensor with shape (B, 1, 4).
-        F : class of function
 
         Returns
         -------
@@ -368,12 +367,6 @@ class FasterRCNN(RCNN):
             feat = [feat]
 
         # RPN proposals
-        """ 
-        The RPN step output the different region proposal of the feature map. 
-        As described in the report, the Faster R-CNN slide a window in order to generate 
-        anchors boxes. For each of those boxes, we predict whether or not it is an object or a 
-        background
-        """
         if autograd.is_training():
             rpn_score, rpn_box, raw_rpn_score, raw_rpn_box, anchors = \
                 self.rpn(F.zeros_like(x), *feat)
@@ -382,11 +375,6 @@ class FasterRCNN(RCNN):
             _, rpn_box = self.rpn(F.zeros_like(x), *feat)
 
         # create batchid for roi
-        """
-        In this part of the code, we obtain the pooled_feat. Those features is the 
-        output of the RPN pass through the RoI max polling layers. 
-        
-        """
         num_roi = self._num_sample if autograd.is_training() else self._rpn_test_post_nms
         batch_size = self._batch_size if autograd.is_training() else 1
         with autograd.pause():
@@ -411,10 +399,6 @@ class FasterRCNN(RCNN):
                 raise ValueError("Invalid roi mode: {}".format(self._roi_mode))
 
         # RCNN prediction
-        """
-        This is the final step before outputting the ids_class of each boxes, 
-        the confidence score of the classification and the bounding boxe coordinates.
-        """
         if self.top_features is not None:
             top_feat = self.top_features(pooled_feat)
         else:
@@ -444,72 +428,40 @@ class FasterRCNN(RCNN):
             return (cls_pred, box_pred, rpn_box, samples, matches, raw_rpn_score, raw_rpn_box,
                     anchors, cls_targets, box_targets, box_masks, indices)
 
-        boxe_prediction_training = cp.deepcopy(box_pred)
         box_pred = self.box_predictor(box_feat)
         # box_pred (B * N, C * 4) -> (B, N, C, 4)
         box_pred = box_pred.reshape((batch_size, num_roi, self.num_class, 4))
         # cls_ids (B, N, C), scores (B, N, C)
-
-        """
-        Here, we modify the pre softmax by divided the cls_pred by 5.
-        We chose Temperature equal to 5. We have to put it back equal to 1 during the
-        test. But this notice is obviously for the Student Network.
-        """
-        cls_ids, scores = self.cls_decoder(F.softmax(cls_pred, axis=-1))
-        # we keep the output of the softmax, this is our soft target
-        cls_score = F.softmax(cls_pred/5, axis=-1)  # Important to return
+        cls_ids, scores = self.cls_decoder(F.softmax(cls_pred, axis=-1, temperature=self.temperature))
 
         # cls_ids, scores (B, N, C) -> (B, C, N) -> (B, C, N, 1)
         cls_ids = cls_ids.transpose((0, 2, 1)).reshape((0, 0, 0, 1))
         scores = scores.transpose((0, 2, 1)).reshape((0, 0, 0, 1))
         # box_pred (B, N, C, 4) -> (B, C, N, 4)
-        # box_pred is the offset prediction
         box_pred = box_pred.transpose((0, 2, 1, 3))
 
-
-        """
-        We use the _split function in order to get the ndarray. We don't want the dimension of the batch size
-        """
         # rpn_boxes (B, N, 4) -> B * (1, N, 4)
         rpn_boxes = _split(rpn_box, axis=0, num_outputs=batch_size, squeeze_axis=False)
-        #print("rpn_boxes", rpn_boxes)
         # cls_ids, scores (B, C, N, 1) -> B * (C, N, 1)
         cls_ids = _split(cls_ids, axis=0, num_outputs=batch_size, squeeze_axis=True)
         scores = _split(scores, axis=0, num_outputs=batch_size, squeeze_axis=True)
         # box_preds (B, C, N, 4) -> B * (C, N, 4)
         box_preds = _split(box_pred, axis=0, num_outputs=batch_size, squeeze_axis=True)
-        #print("box_preds ", box_preds)
 
-        """
-        Here we take the top-k outputs, where we can assign for each boxe a class and keep the confidence score.
-        But for our project, we need to keep the other confidence score for the soft target. We need our student
-        to learn prediction score of the teacher.
-        """
-        # per batch predict, nms, each class has top-k outputs
+        # per batch predict, nms, each class has topk outputs
         results = []
         for rpn_box, cls_id, score, box_pred in zip(rpn_boxes, cls_ids, scores, box_preds):
             # box_pred (C, N, 4) rpn_box (1, N, 4) -> bbox (C, N, 4)
-            # here we translate the rpn_box thanks to the offset of the box_pred
             bbox = self.box_decoder(box_pred, rpn_box)
-            # res (C, N, 6), we concatenate cls_id, the score confidence, and the coordinate of the bbox
+            # res (C, N, 6)
             res = F.concat(*[cls_id, score, bbox], dim=-1)
             if self.force_nms:
                 # res (1, C*N, 6), to allow cross-catogory suppression
                 res = res.reshape((1, -1, 0))
-            """
-            NMS is used in order to remove a part of the huge amount of bounding boxes.
-            In the fist step of reduction an operation called Non-Maximum Suppression ( NMS) is used.
-            NMS removes boxes that overlaps with other boxes that has higher scores (scores are unnormalized 
-            probabilities , e.g. before softmax is applied to normalize). About 2000 boxes are extracted during 
-            training phase (the number is lower, about 300 for testing phase). In the testing phase these boxes along
-            with their scores go straight to the Detection Network. In the training phase the 2000 boxes are further 
-            reduced through sampling to about 256 before entering the Detection Network.
-            """
             # res (C, self.nms_topk, 6)
             res = F.contrib.box_nms(
                 res, overlap_thresh=self.nms_thresh, topk=self.nms_topk, valid_thresh=0.0001,
                 id_index=0, score_index=1, coord_start=2, force_suppress=self.force_nms)
-
             # res (C * self.nms_topk, 6)
             res = res.reshape((-3, 0))
             results.append(res)
@@ -521,7 +473,7 @@ class FasterRCNN(RCNN):
         bboxes = F.slice_axis(result, axis=-1, begin=2, end=6)
         if self._additional_output:
             return ids, scores, bboxes, feat
-        return ids, scores, bboxes, cls_score, boxe_prediction_training
+        return ids, scores, bboxes, cls_pred
 
 
 def get_faster_rcnn(name, dataset, pretrained=False, ctx=mx.cpu(),
