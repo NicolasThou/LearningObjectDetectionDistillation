@@ -24,11 +24,11 @@ distil_model = model_zoo.get_model('faster_rcnn_resnet50_v1b_coco', pretrained=F
 distil_model.load_parameters('params/model_distil_1399.params', ignore_extra=True)
 
 transform = presets.rcnn.FasterRCNNDefaultValTransform()
-data_loader = DataLoader(dataset.transform(transform), batch_size=1, last_batch='keep')
+data_loader = DataLoader(dataset.transform(transform), batch_size=1, shuffle=True, last_batch='keep')
 
 matplotlib.use('TkAgg')
 for batch_idx, batch in enumerate(data_loader):
-    if batch_idx > 5:
+    if batch_idx > 100:
         break
     for data_img, data_label, _ in zip(*batch):
         ids, scores, bboxes, _ = model(data_img.expand_dims(0))
@@ -38,10 +38,10 @@ for batch_idx, batch in enumerate(data_loader):
         gt_label = data_label[:, :, 4:5]
         gt_box = data_label[:, :, :4]
 
-        img = inverse_transformation(data_img)  # inverse transformation to get image
-        viz.plot_bbox(img, gt_box[0], mx.ndarray.ones(gt_box[0].shape[0]), gt_label[0], class_names=dataset.CLASSES)
         # we can change the threshold to display bounding boxes with lower scores
         # smaller training will result in smaller confidence score
+        img = inverse_transformation(data_img)  # inverse transformation to get image
+        viz.plot_bbox(img, gt_box[0], mx.ndarray.ones(gt_box[0].shape[0]), gt_label[0], class_names=dataset.CLASSES)
         viz.plot_bbox(img, bboxes[0], scores[0], ids[0], class_names=dataset.CLASSES, thresh=0.3)
         viz.plot_bbox(img, distil_bboxes[0], distil_scores[0], distil_ids[0], class_names=dataset.CLASSES, thresh=0.3)
         plt.show()
