@@ -3,9 +3,7 @@ from mxnet import nd
 from mxnet import autograd
 from mxnet.gluon.data import DataLoader
 from mxnet.gluon import Trainer
-from gluoncv.data import VOCDetection
-from gluoncv import utils
-from gluoncv.data.batchify import Tuple, Append, FasterRCNNTrainBatchify
+from gluoncv.data.batchify import FasterRCNNTrainBatchify
 from gluoncv import model_zoo
 from gluoncv.data.transforms import presets
 from gluoncv import data
@@ -13,7 +11,6 @@ from gluoncv.utils import viz
 from torch.utils.tensorboard import SummaryWriter
 import matplotlib
 import matplotlib.pyplot as plt
-import tkinter
 import numpy as np
 import time
 

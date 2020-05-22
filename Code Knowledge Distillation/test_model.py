@@ -1,14 +1,12 @@
 import mxnet as mx
 from mxnet import nd
 from mxnet.gluon.data import DataLoader
-from gluoncv import utils
 from gluoncv import model_zoo
 from gluoncv.data.transforms import presets
 from gluoncv import data
 from gluoncv.utils import viz
 import matplotlib
 import matplotlib.pyplot as plt
-import numpy as np
 
 
 def inverse_transformation(image):
