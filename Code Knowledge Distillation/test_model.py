@@ -1,32 +1,26 @@
 import mxnet as mx
 from mxnet import nd
-from mxnet import autograd
 from mxnet.gluon.data import DataLoader
-from mxnet.gluon import Trainer
-from gluoncv.data import VOCDetection
 from gluoncv import utils
-from gluoncv.data.batchify import Tuple, Append, FasterRCNNTrainBatchify
 from gluoncv import model_zoo
 from gluoncv.data.transforms import presets
 from gluoncv import data
 from gluoncv.utils import viz
-from torch.utils.tensorboard import SummaryWriter
 import matplotlib
 import matplotlib.pyplot as plt
-import tkinter
 import numpy as np
 import time
 
 
-def extract_boxes(scores, labels):
+def extract_boxes(scores, labels, classes):
     assert len(scores) == len(labels)
 
     idx = []
     for i in range(len(scores)):
-        if scores[i] < 0.09 or labels[i] < 0:
+        if labels[i] < 0 or scores[i] < 0.03:
             continue
+        print(f'{scores[i].asnumpy().item()} | {classes[int(labels[i].asnumpy().item())]}')
         idx.append(i)
-        # print(scores[i])
 
     return idx
 
@@ -50,37 +44,46 @@ def teacher_bounded_regression_loss(y, teacher_pred, student_pred):
 train_dataset = data.COCODetection(splits=['instances_train2017'])
 
 model = model_zoo.get_model('faster_rcnn_resnet50_v1b_coco', pretrained=False)
-model.load_params('params/model_distil_49.params')
+model.load_parameters('params/model_1399.params', ignore_extra=True)
+distil_model = model_zoo.get_model('faster_rcnn_resnet50_v1b_coco', pretrained=False)
+distil_model.load_parameters('params/model_distil_1399.params', ignore_extra=True)
 
 train_transform = presets.rcnn.FasterRCNNDefaultTrainTransform(flip_p=0)
 
-train_loader = DataLoader(train_dataset.transform(train_transform), batch_size=1, shuffle=False,
-                          last_batch='rollover', num_workers=0)
+train_loader = DataLoader(train_dataset.transform(train_transform), batch_size=1, shuffle=True, last_batch='rollover')
 
 matplotlib.use('TkAgg')
 for batch_idx, batch in enumerate(train_loader):
     if batch_idx > 5:
         break
     for data_img, data_label in zip(*batch):
-        # teacher_img, teacher_label = train_dataset[batch_idx]
-        # transformed_img, original_teacher_img = presets.rcnn.transform_test(teacher_img)
-        # ids, scores, bboxes, teacher_prob = teacher(transformed_img)
-        ids, scores, bboxes, teacher_prob = model(data_img.expand_dims(0))
+        ids, scores, bboxes, _ = model(data_img.expand_dims(0))
+        distil_ids, distil_scores, distil_bboxes, _ = distil_model(data_img.expand_dims(0))
 
-        idx = extract_boxes(scores[0], ids[0])
-        bboxes = bboxes[:, idx, :]
-        scores = scores[:, idx, :]
-        ids = ids[:, idx, :]
+        print('No distil mode')
+        idx = extract_boxes(scores[0], ids[0], model.classes)
+        if len(idx) == 0:
+            bboxes, scores, ids = [], [], []
+        else:
+            bboxes = bboxes[:, idx, :]
+            scores = scores[:, idx, :]
+            ids = ids[:, idx, :]
+
+        print('Distil model')
+        distil_idx = extract_boxes(distil_scores[0], distil_ids[0], distil_model.classes)
+        if len(distil_ids) == 0:
+            distil_bboxes, distil_scores, distil_ids = [], [], []
+        else:
+            distil_bboxes = distil_bboxes[:, distil_idx, :]
+            distil_scores = distil_scores[:, distil_idx, :]
+            distil_ids = distil_ids[:, distil_idx, :]
 
         data_label = data_label.expand_dims(0)
         gt_label = data_label[:, :, 4:5]
         gt_box = data_label[:, :, :4]
 
         train_image = inverse_transformation(data_img)  # inverse transformation to get image
-        # viz.plot_bbox(original_teacher_img, gt_box[0], mx.ndarray.ones(gt_box[0].shape[0]), gt_label[0], class_names=teacher.classes)
-        # viz.plot_bbox(original_teacher_img, bboxes[0], scores[0], ids[0], class_names=teacher.classes)
-        viz.plot_bbox(train_image, gt_box[0], mx.ndarray.ones(gt_box[0].shape[0]), gt_label[0], class_names=model.classes)
-        plt.show()
+        # viz.plot_bbox(train_image, gt_box[0], mx.ndarray.ones(gt_box[0].shape[0]), gt_label[0], class_names=model.classes)
         viz.plot_bbox(train_image, bboxes[0], mx.ndarray.ones(bboxes[0].shape[0]), ids[0], class_names=model.classes)
-        # viz.plot_bbox(teacher_img, teacher_label[:, :4], mx.ndarray.ones(teacher_label.shape[0]), teacher_label[:, 4], class_names=teacher.classes)
+        viz.plot_bbox(train_image, distil_bboxes[0], mx.ndarray.ones(distil_ids[0].shape[0]), distil_ids[0], class_names=model.classes)
         plt.show()
